@@ -33,10 +33,6 @@
 #include "mono_gd/gd_mono.h"
 #include "utils/path_utils.h"
 
-#ifdef ANDROID_ENABLED
-#include "mono_gd/support/android_support.h"
-#endif
-
 #include "core/config/project_settings.h"
 #include "core/io/dir_access.h"
 #include "core/os/os.h"
@@ -104,8 +100,6 @@ static const char *platform_name_map[][2] = {
 	{ "FreeBSD", "linuxbsd" },
 	{ "NetBSD", "linuxbsd" },
 	{ "BSD", "linuxbsd" },
-	{ "UWP", "uwp" },
-	{ "Haiku", "haiku" },
 	{ "Android", "android" },
 	{ "iOS", "ios" },
 	{ "Web", "web" },
@@ -198,9 +192,15 @@ private:
 				}
 			}
 			if (!has_data) {
-				// 3. Extract the data to a temporary location to load from there.
-				Ref<DirAccess> da = DirAccess::create_for_path(packed_path);
-				ERR_FAIL_NULL(da);
+				// 3. Extract the data to a temporary location to load from there, delete old data if it exists but is not up-to-date.
+				Ref<DirAccess> da;
+				if (DirAccess::exists(data_dir_root)) {
+					da = DirAccess::open(data_dir_root);
+					ERR_FAIL_COND(da.is_null());
+					ERR_FAIL_COND(da->erase_contents_recursive() != OK);
+				}
+				da = DirAccess::create_for_path(packed_path);
+				ERR_FAIL_COND(da.is_null());
 				ERR_FAIL_COND(da->copy_dir(packed_path, data_dir_root) != OK);
 			}
 			api_assemblies_dir = data_dir_root;

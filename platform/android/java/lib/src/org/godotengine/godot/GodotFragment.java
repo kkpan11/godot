@@ -30,6 +30,8 @@
 
 package org.godotengine.godot;
 
+import org.godotengine.godot.error.Error;
+import org.godotengine.godot.plugin.GodotPlugin;
 import org.godotengine.godot.utils.BenchmarkUtils;
 
 import android.app.Activity;
@@ -37,9 +39,11 @@ import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.content.res.Configuration;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Messenger;
+import android.text.TextUtils;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -65,6 +69,7 @@ import com.google.android.vending.expansion.downloader.IStub;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 /**
  * Base fragment for Android apps intending to use Godot for part of the app's UI.
@@ -122,6 +127,7 @@ public class GodotFragment extends Fragment implements IDownloaderClient, GodotH
 	}
 	public ResultCallback resultCallback;
 
+	@Override
 	public Godot getGodot() {
 		return godot;
 	}
@@ -140,6 +146,13 @@ public class GodotFragment extends Fragment implements IDownloaderClient, GodotH
 	public void onDetach() {
 		super.onDetach();
 		parentHost = null;
+	}
+
+	@CallSuper
+	@Override
+	public void onConfigurationChanged(Configuration newConfig) {
+		super.onConfigurationChanged(newConfig);
+		godot.onConfigurationChanged(newConfig);
 	}
 
 	@CallSuper
@@ -169,15 +182,20 @@ public class GodotFragment extends Fragment implements IDownloaderClient, GodotH
 
 	@Override
 	public void onCreate(Bundle icicle) {
-		BenchmarkUtils.beginBenchmarkMeasure("GodotFragment::onCreate");
+		BenchmarkUtils.beginBenchmarkMeasure("Startup", "GodotFragment::onCreate");
 		super.onCreate(icicle);
 
 		final Activity activity = getActivity();
 		mCurrentIntent = activity.getIntent();
 
-		godot = new Godot(requireContext());
+		if (parentHost != null) {
+			godot = parentHost.getGodot();
+		}
+		if (godot == null) {
+			godot = new Godot(requireContext());
+		}
 		performEngineInitialization();
-		BenchmarkUtils.endBenchmarkMeasure("GodotFragment::onCreate");
+		BenchmarkUtils.endBenchmarkMeasure("Startup", "GodotFragment::onCreate");
 	}
 
 	private void performEngineInitialization() {
@@ -192,6 +210,12 @@ public class GodotFragment extends Fragment implements IDownloaderClient, GodotH
 			if (godotContainerLayout == null) {
 				throw new IllegalStateException("Unable to initialize engine render view");
 			}
+		} catch (IllegalStateException e) {
+			Log.e(TAG, "Engine initialization failed", e);
+			final String errorMessage = TextUtils.isEmpty(e.getMessage())
+					? getString(R.string.error_engine_setup_message)
+					: e.getMessage();
+			godot.alert(errorMessage, getString(R.string.text_error_title), godot::destroyAndKillProcess);
 		} catch (IllegalArgumentException ignored) {
 			final Activity activity = getActivity();
 			Intent notifierIntent = new Intent(activity, activity.getClass());
@@ -268,6 +292,32 @@ public class GodotFragment extends Fragment implements IDownloaderClient, GodotH
 	}
 
 	@Override
+	public void onStop() {
+		super.onStop();
+		if (!godot.isInitialized()) {
+			if (null != mDownloaderClientStub) {
+				mDownloaderClientStub.disconnect(getActivity());
+			}
+			return;
+		}
+
+		godot.onStop(this);
+	}
+
+	@Override
+	public void onStart() {
+		super.onStart();
+		if (!godot.isInitialized()) {
+			if (null != mDownloaderClientStub) {
+				mDownloaderClientStub.connect(getActivity());
+			}
+			return;
+		}
+
+		godot.onStart(this);
+	}
+
+	@Override
 	public void onResume() {
 		super.onResume();
 		if (!godot.isInitialized()) {
@@ -281,7 +331,7 @@ public class GodotFragment extends Fragment implements IDownloaderClient, GodotH
 	}
 
 	public void onBackPressed() {
-		godot.onBackPressed(this);
+		godot.onBackPressed();
 	}
 
 	/**
@@ -424,6 +474,39 @@ public class GodotFragment extends Fragment implements IDownloaderClient, GodotH
 		if (parentHost != null) {
 			return parentHost.onNewGodotInstanceRequested(args);
 		}
-		return 0;
+		return -1;
+	}
+
+	@Override
+	@CallSuper
+	public Set<GodotPlugin> getHostPlugins(Godot engine) {
+		if (parentHost != null) {
+			return parentHost.getHostPlugins(engine);
+		}
+		return Collections.emptySet();
+	}
+
+	@Override
+	public Error signApk(@NonNull String inputPath, @NonNull String outputPath, @NonNull String keystorePath, @NonNull String keystoreUser, @NonNull String keystorePassword) {
+		if (parentHost != null) {
+			return parentHost.signApk(inputPath, outputPath, keystorePath, keystoreUser, keystorePassword);
+		}
+		return Error.ERR_UNAVAILABLE;
+	}
+
+	@Override
+	public Error verifyApk(@NonNull String apkPath) {
+		if (parentHost != null) {
+			return parentHost.verifyApk(apkPath);
+		}
+		return Error.ERR_UNAVAILABLE;
+	}
+
+	@Override
+	public boolean supportsFeature(String featureTag) {
+		if (parentHost != null) {
+			return parentHost.supportsFeature(featureTag);
+		}
+		return false;
 	}
 }

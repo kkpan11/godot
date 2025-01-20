@@ -40,7 +40,7 @@
 
 using namespace godot;
 
-#else
+#elif defined(GODOT_MODULE)
 // Headers for building as built-in module.
 
 #include "core/os/mutex.h"
@@ -60,33 +60,30 @@ using namespace godot;
 
 struct GL_State {
 	bool ready = false;
-	float bmp_x = 0;
-	float bmp_y = 0;
 	float x = 0;
 	float y = 0;
 	float w = 0;
 	float h = 0;
-#ifndef GDEXTENSION
 	CharString xml_code;
-#else
-	// @todo After godot-cpp#1142 is fixed, use CharString just like when compiled as a Godot module.
-	char *xml_code = nullptr;
-	int xml_code_length = 0;
-#endif
 	tvg::Matrix m;
+};
 
-#ifdef GDEXTENSION
-	~GL_State() {
-		if (xml_code) {
-			memdelete_arr(xml_code);
-		}
-	}
-#endif
+struct TVG_NodeCache {
+	uint64_t document_offset;
+	uint64_t body_offset;
+};
+
+struct TVG_DocumentCache {
+	String xml_body;
+	double embox_x;
+	double embox_y;
+	HashMap<int64_t, Vector<TVG_NodeCache>> node_caches;
 };
 
 struct TVG_State {
 	Mutex mutex;
 	HashMap<uint32_t, GL_State> glyph_map;
+	HashMap<FT_Byte *, TVG_DocumentCache> document_map;
 };
 
 FT_Error tvg_svg_in_ot_init(FT_Pointer *p_state);

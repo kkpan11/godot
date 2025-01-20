@@ -52,8 +52,7 @@ bool is_variable_char(unsigned char c) {
 }
 
 bool is_operator_char(unsigned char c) {
-	static const std::string operators = "<>=+-*/";
-	return operators.find(c) != std::string::npos;
+	return (c == '*') || (c == '+') || (c == '-') || (c == '/') || ((c >= '<') && (c <= '>'));
 }
 
 // Remove unnecessary spaces from a line.
@@ -67,7 +66,7 @@ String remove_spaces(String &p_str) {
 
 	for (int n = 0; n < p_str.size(); n++) {
 		// These test cases only use ASCII.
-		auto c = static_cast<unsigned char>(p_str[n]);
+		unsigned char c = static_cast<unsigned char>(p_str[n]);
 		if (std::isblank(c)) {
 			has_removed = true;
 		} else {
@@ -93,7 +92,7 @@ String remove_spaces(String &p_str) {
 String compact_spaces(String &p_str) {
 	Vector<String> lines = p_str.split("\n", false);
 	erase_all_empty(lines);
-	for (auto &line : lines) {
+	for (String &line : lines) {
 		line = remove_spaces(line);
 	}
 	return String("\n").join(lines);
@@ -295,7 +294,7 @@ TEST_CASE("[ShaderPreprocessor] Concatenation sorting network") {
 	CHECK_SHADER_EQ(result, expected);
 }
 
-TEST_CASE("[ShaderPreprocessor] Undefined behaviour") {
+TEST_CASE("[ShaderPreprocessor] Undefined behavior") {
 	// None of these are valid concatenation, nor valid shader code.
 	// Don't care about results, just make sure there's no crash.
 	const String filename("somefile.gdshader");

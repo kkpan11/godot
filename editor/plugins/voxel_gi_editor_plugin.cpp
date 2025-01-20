@@ -32,6 +32,7 @@
 
 #include "editor/editor_interface.h"
 #include "editor/editor_node.h"
+#include "editor/editor_string_names.h"
 #include "editor/gui/editor_file_dialog.h"
 
 void VoxelGIEditorPlugin::_bake() {
@@ -145,19 +146,19 @@ void VoxelGIEditorPlugin::make_visible(bool p_visible) {
 
 EditorProgress *VoxelGIEditorPlugin::tmp_progress = nullptr;
 
-void VoxelGIEditorPlugin::bake_func_begin(int p_steps) {
+void VoxelGIEditorPlugin::bake_func_begin() {
 	ERR_FAIL_COND(tmp_progress != nullptr);
 
-	tmp_progress = memnew(EditorProgress("bake_gi", TTR("Bake VoxelGI"), p_steps));
+	tmp_progress = memnew(EditorProgress("bake_gi", TTR("Bake VoxelGI"), 1000, true));
 }
 
-void VoxelGIEditorPlugin::bake_func_step(int p_step, const String &p_description) {
-	ERR_FAIL_COND(tmp_progress == nullptr);
-	tmp_progress->step(p_description, p_step, false);
+bool VoxelGIEditorPlugin::bake_func_step(int p_progress, const String &p_description) {
+	ERR_FAIL_NULL_V(tmp_progress, false);
+	return tmp_progress->step(p_description, p_progress, false);
 }
 
 void VoxelGIEditorPlugin::bake_func_end() {
-	ERR_FAIL_COND(tmp_progress == nullptr);
+	ERR_FAIL_NULL(tmp_progress);
 	memdelete(tmp_progress);
 	tmp_progress = nullptr;
 }
@@ -176,18 +177,17 @@ void VoxelGIEditorPlugin::_voxel_gi_save_path_and_bake(const String &p_path) {
 	}
 }
 
-void VoxelGIEditorPlugin::_bind_methods() {
-}
-
 VoxelGIEditorPlugin::VoxelGIEditorPlugin() {
 	bake_hb = memnew(HBoxContainer);
 	bake_hb->set_h_size_flags(Control::SIZE_EXPAND_FILL);
 	bake_hb->hide();
 	bake = memnew(Button);
-	bake->set_flat(true);
-	bake->set_icon(EditorNode::get_singleton()->get_gui_base()->get_theme_icon(SNAME("Bake"), SNAME("EditorIcons")));
+	bake->set_theme_type_variation(SceneStringName(FlatButton));
+	// TODO: Rework this as a dedicated toolbar control so we can hook into theme changes and update it
+	// when the editor theme updates.
+	bake->set_button_icon(EditorNode::get_singleton()->get_editor_theme()->get_icon(SNAME("Bake"), EditorStringName(EditorIcons)));
 	bake->set_text(TTR("Bake VoxelGI"));
-	bake->connect("pressed", callable_mp(this, &VoxelGIEditorPlugin::_bake));
+	bake->connect(SceneStringName(pressed), callable_mp(this, &VoxelGIEditorPlugin::_bake));
 	bake_hb->add_child(bake);
 
 	add_control_to_container(CONTAINER_SPATIAL_EDITOR_MENU, bake_hb);
